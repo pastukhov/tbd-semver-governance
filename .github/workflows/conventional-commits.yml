@@ -1,0 +1,45 @@
+name: conventional-commits
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate:
+    if: ${{ github.event.pull_request.draft != true }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit messages in PR range
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          range="${BASE_SHA}..${HEAD_SHA}"
+          echo "Validating commits in range: ${range}"
+
+          mapfile -t commits < <(git rev-list --reverse --no-merges "${range}")
+          if [[ ${#commits[@]} -eq 0 ]]; then
+            echo "No non-merge commits found in PR range; nothing to validate."
+            exit 0
+          fi
+
+          tmp_msg="$(mktemp)"
+          trap 'rm -f "$tmp_msg"' EXIT
+
+          for sha in "${commits[@]}"; do
+            subject="$(git show -s --format=%s "$sha")"
+            printf '%s\n' "$subject" > "$tmp_msg"
+            echo "Checking ${sha}: ${subject}"
+            scripts/validate_conventional_commit.sh "$tmp_msg"
+          done
