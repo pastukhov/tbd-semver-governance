@@ -33,7 +33,7 @@ scripts/install_git_hooks.sh
 ### 2) Validate skill structure
 
 ```bash
-python3 /home/artem/.codex/skills/.system/skill-creator/scripts/quick_validate.py .
+python3 "$(codex home)/skills/.system/skill-creator/scripts/quick_validate.py" .
 ```
 
 ### 3) Apply GitHub branch protection (dry run first)
