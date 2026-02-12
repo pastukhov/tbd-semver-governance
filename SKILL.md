@@ -30,16 +30,18 @@ Enforce these rules in every recommendation and implementation:
 
 Use this sequence when executing work in a governed repository:
 
-1. Detect default branch and fetch latest state.
-2. Create a short-lived branch from `origin/<default-branch>` head.
-3. Implement changes and tests in that branch only.
-4. Validate locally (unit/integration/lint as repository defines).
-5. Ensure every new commit message follows Conventional Commits.
-6. Push branch and open PR to default branch.
-7. Confirm CI checks are green before merge recommendation.
-8. Merge with repository-approved strategy.
-9. Delete merged branch.
-10. Verify version-tag pipeline and release pipeline trigger and complete.
+1. Detect whether `origin` points to GitHub.
+2. If repository is on GitHub, run `scripts/enforce_github_branch_protection.sh` before starting implementation.
+3. Detect default branch and fetch latest state.
+4. Create a short-lived branch from `origin/<default-branch>` head.
+5. Implement changes and tests in that branch only.
+6. Validate locally (unit/integration/lint as repository defines).
+7. Ensure every new commit message follows Conventional Commits.
+8. Push branch and open PR to default branch.
+9. Confirm CI checks are green before merge recommendation.
+10. Merge with repository-approved strategy.
+11. Delete merged branch.
+12. Verify version-tag pipeline and release pipeline trigger and complete.
 
 If default branch is unknown, determine it first and avoid assumptions.
 
@@ -60,5 +62,6 @@ Use bundled scripts for commit-message enforcement:
 
 1. Run `scripts/install_git_hooks.sh` from repository root to install `commit-msg` hook.
 2. The hook runs `scripts/validate_conventional_commit.sh` and blocks invalid messages.
+3. For GitHub repositories, run `scripts/enforce_github_branch_protection.sh` to apply required branch protection automatically.
 
 For CI guidance and branch protection defaults, read `references/ci_cd_policy.md`.

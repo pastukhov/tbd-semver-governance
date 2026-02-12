@@ -40,6 +40,13 @@ Apply one long-lived default branch and short-lived task branches with strict qu
 5. Restrict merge methods to repository-approved strategy.
 6. Allow automatic deletion of head branch after merge.
 
+## Automatic GitHub Setup
+
+1. Apply protection with `scripts/enforce_github_branch_protection.sh`.
+2. Let the script auto-detect `owner/repo` from `origin` and default branch from GitHub.
+3. Let the script auto-detect required checks from latest default-branch check runs, or pass checks explicitly with repeated `--check`.
+4. Run with `--dry-run` first when validating a new repository policy.
+
 ## CI Check Suggestions
 
 1. Run unit tests.
