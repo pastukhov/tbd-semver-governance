@@ -28,7 +28,7 @@ Use these commands from repository root:
 - `scripts/validate_conventional_commit.sh .git/COMMIT_EDITMSG`: validate a commit message file.
 - `scripts/enforce_github_branch_protection.sh --dry-run`: preview branch protection payload.
 - `scripts/enforce_github_branch_protection.sh --check copilot-review-gate --required-approvals 0`: apply protection for this repo model.
-- `python3 /home/artem/.codex/skills/.system/skill-creator/scripts/quick_validate.py .`: validate skill structure and metadata.
+- `python3 "$(codex home)/skills/.system/skill-creator/scripts/quick_validate.py" .`: validate skill structure and metadata.
 
 ## Coding Style & Naming Conventions
 
