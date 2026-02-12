@@ -4,6 +4,29 @@ A reusable Codex skill that enforces a strict Trunk-Based Development workflow w
 
 The repository contains the skill definition, governance scripts, and CI automation to keep pull requests and releases consistent.
 
+## Install This Skill
+
+Install by placing this repository in your Codex skills directory:
+
+```bash
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+mkdir -p "$CODEX_HOME/skills"
+git clone git@github.com:pastukhov/tbd-semver-governance.git \
+  "$CODEX_HOME/skills/tbd-semver-governance"
+```
+
+Verify installation:
+
+```bash
+test -f "$CODEX_HOME/skills/tbd-semver-governance/SKILL.md" && echo "installed"
+```
+
+Then invoke the skill in Codex with:
+
+```text
+$tbd-semver-governance
+```
+
 ## What This Skill Enforces
 
 - Exactly one long-lived branch (default branch).
