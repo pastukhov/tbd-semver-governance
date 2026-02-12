@@ -5,8 +5,6 @@ on:
     types: [opened, reopened, synchronize, edited, ready_for_review]
   pull_request_review:
     types: [submitted, edited, dismissed]
-  pull_request_review_thread:
-    types: [resolved, unresolved]
 
 permissions:
   contents: read
@@ -14,7 +12,7 @@ permissions:
 
 jobs:
   gate:
-    if: ${{ github.event.pull_request.draft != true }}
+    name: copilot-review-gate
     runs-on: ubuntu-latest
     steps:
       - name: Validate Copilot review status
@@ -23,7 +21,10 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const number = context.payload.pull_request?.number ?? context.payload.review?.pull_request?.number;
+            const number =
+              context.payload.pull_request?.number ??
+              context.payload.review?.pull_request?.number ??
+              context.payload.thread?.pull_request?.number;
 
             if (!number) {
               core.setFailed('Unable to determine pull request number from event payload.');
@@ -34,6 +35,7 @@ jobs:
               query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
                   pullRequest(number: $number) {
+                    isDraft
                     reviews(last: 100) {
                       nodes {
                         state
@@ -60,6 +62,11 @@ jobs:
             `, { owner, repo, number });
 
             const pr = data.repository.pullRequest;
+            if (pr.isDraft) {
+              core.notice('Draft pull request; skipping Copilot gate.');
+              return;
+            }
+
             const copilotAuthors = new Set(['copilot-pull-request-reviewer', 'Copilot']);
 
             const copilotReviews = pr.reviews.nodes.filter((r) => {
