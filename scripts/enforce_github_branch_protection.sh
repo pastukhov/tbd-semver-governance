@@ -4,12 +4,14 @@ set -euo pipefail
 usage() {
   cat <<USAGE
 Usage:
-  $0 [--repo owner/repo] [--branch branch] [--check check-name]... [--dry-run]
+  $0 [--repo owner/repo] [--branch branch] [--check check-name]... [--allow-clear-checks] [--dry-run]
 
 Options:
   --repo      GitHub repository in owner/repo format. If omitted, detect from git origin.
   --branch    Branch to protect. If omitted, detect default branch from GitHub.
   --check     Required status check name. Repeatable.
+  --allow-clear-checks
+              Allow clearing required_status_checks when no checks were provided and none were auto-detected.
   --dry-run   Print detected values and payload without applying changes.
   -h,--help   Show this help.
 
@@ -27,13 +29,14 @@ repo=""
 branch=""
 dry_run=false
 checks=()
+allow_clear_checks=false
 
 require_flag_value() {
   local flag="$1"
   local count="$2"
   local value="${3-}"
 
-  if [[ "$count" -lt 2 || -z "$value" ]]; then
+  if [[ "$count" -lt 2 || -z "$value" || "$value" == -* ]]; then
     echo "missing value for $flag" >&2
     usage >&2
     exit 2
@@ -56,6 +59,10 @@ while [[ $# -gt 0 ]]; do
       require_flag_value "--check" "$#" "${2-}"
       checks+=("$2")
       shift 2
+      ;;
+    --allow-clear-checks)
+      allow_clear_checks=true
+      shift
       ;;
     --dry-run)
       dry_run=true
@@ -91,6 +98,15 @@ parse_repo_from_origin() {
   if [[ "$url" =~ ^git@github\.com:(.+)$ ]]; then
     repo_path="${BASH_REMATCH[1]}"
     repo_path="${repo_path%.git}"
+    repo_path="${repo_path%/}"
+    echo "$repo_path"
+    return 0
+  fi
+
+  if [[ "$url" =~ ^ssh://git@github\.com[:/](.+)$ ]]; then
+    repo_path="${BASH_REMATCH[1]}"
+    repo_path="${repo_path%.git}"
+    repo_path="${repo_path%/}"
     echo "$repo_path"
     return 0
   fi
@@ -98,6 +114,7 @@ parse_repo_from_origin() {
   if [[ "$url" =~ ^https://github\.com/(.+)$ ]]; then
     repo_path="${BASH_REMATCH[1]}"
     repo_path="${repo_path%.git}"
+    repo_path="${repo_path%/}"
     echo "$repo_path"
     return 0
   fi
@@ -179,6 +196,12 @@ fi
 
 has_required_checks=true
 if [[ ${#checks[@]} -eq 0 ]]; then
+  if ! $allow_clear_checks; then
+    echo "no required checks were provided and none were auto-detected." >&2
+    echo "refusing to clear required_status_checks by default." >&2
+    echo "pass --allow-clear-checks to allow required_status_checks=null explicitly." >&2
+    exit 1
+  fi
   has_required_checks=false
 fi
 
@@ -232,7 +255,7 @@ if $dry_run; then
       echo "- $c"
     done
   else
-    echo "required checks: none detected (required_status_checks will be null)"
+    echo "required checks: none detected (required_status_checks will be null because --allow-clear-checks is set)"
   fi
   echo
   echo "payload:"

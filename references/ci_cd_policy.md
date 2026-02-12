@@ -42,11 +42,12 @@ Apply one long-lived default branch and short-lived task branches with strict qu
 
 ## Automatic GitHub Setup
 
-1. Ensure GitHub CLI `gh` is installed and authenticated (`gh auth login`) with repository permissions sufficient to manage branch protection.
-2. Apply protection with `scripts/enforce_github_branch_protection.sh`.
-3. Let the script auto-detect `owner/repo` from `origin` and default branch from GitHub.
-4. Let the script auto-detect required checks from latest default-branch check runs, or pass checks explicitly with repeated `--check`.
-5. Run with `--dry-run` first when validating a new repository policy.
+1. Ensure `git`, `python3`, and GitHub CLI `gh` are installed.
+2. Ensure `gh` is authenticated (`gh auth login`) with repository permissions sufficient to manage branch protection.
+3. Apply protection with `scripts/enforce_github_branch_protection.sh`.
+4. Let the script auto-detect `owner/repo` from `origin` and default branch from GitHub.
+5. Let the script auto-detect required checks from latest default-branch check runs, or pass checks explicitly with repeated `--check`.
+6. Run with `--dry-run` first when validating a new repository policy.
 
 ## CI Check Suggestions
 
