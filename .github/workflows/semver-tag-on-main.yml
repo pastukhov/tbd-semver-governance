@@ -1,0 +1,96 @@
+name: semver-tag-on-main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  version-and-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute SemVer bump and create tag
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1 || true)"
+          if [[ -n "$latest_tag" ]]; then
+            range="${latest_tag}..HEAD"
+            base_version="${latest_tag#v}"
+          else
+            range="HEAD"
+            base_version="0.0.0"
+          fi
+
+          bump="none"
+          mapfile -t commits < <(git rev-list --reverse "${range}")
+          for sha in "${commits[@]}"; do
+            subject="$(git show -s --format=%s "$sha")"
+            body="$(git show -s --format=%b "$sha")"
+
+            if [[ "$subject" =~ ^[a-z]+(\([a-z0-9._/-]+\))?!:[[:space:]]+.+$ ]] || grep -q 'BREAKING CHANGE:' <<< "$body"; then
+              bump="major"
+              break
+            fi
+
+            if [[ "$bump" != "major" && "$subject" =~ ^feat(\([a-z0-9._/-]+\))?:[[:space:]]+.+$ ]]; then
+              bump="minor"
+              continue
+            fi
+
+            if [[ "$bump" == "none" && "$subject" =~ ^fix(\([a-z0-9._/-]+\))?:[[:space:]]+.+$ ]]; then
+              bump="patch"
+            fi
+          done
+
+          if [[ "$bump" == "none" ]]; then
+            echo "No feat/fix/BREAKING CHANGE commits since ${latest_tag:-repository start}; skipping tag."
+            exit 0
+          fi
+
+          IFS='.' read -r major minor patch <<< "$base_version"
+          case "$bump" in
+            major)
+              major=$((major + 1))
+              minor=0
+              patch=0
+              ;;
+            minor)
+              minor=$((minor + 1))
+              patch=0
+              ;;
+            patch)
+              patch=$((patch + 1))
+              ;;
+          esac
+
+          new_tag="v${major}.${minor}.${patch}"
+
+          if git rev-parse -q --verify "refs/tags/${new_tag}" >/dev/null; then
+            echo "Tag ${new_tag} already exists locally; skipping."
+            exit 0
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${new_tag}" >/dev/null 2>&1; then
+            echo "Tag ${new_tag} already exists on origin; skipping."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -a "$new_tag" -m "release: ${new_tag}"
+          git push origin "refs/tags/${new_tag}"
+
+          echo "Created and pushed tag: ${new_tag}"
