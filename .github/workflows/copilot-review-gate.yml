@@ -1,0 +1,89 @@
+name: copilot-review-gate
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_thread:
+    types: [resolved, unresolved]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  gate:
+    if: ${{ github.event.pull_request.draft != true }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Copilot review status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const number = context.payload.pull_request?.number ?? context.payload.review?.pull_request?.number;
+
+            if (!number) {
+              core.setFailed('Unable to determine pull request number from event payload.');
+              return;
+            }
+
+            const data = await github.graphql(`
+              query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    reviews(last: 100) {
+                      nodes {
+                        state
+                        author {
+                          login
+                        }
+                      }
+                    }
+                    reviewThreads(first: 100) {
+                      nodes {
+                        isResolved
+                        comments(first: 30) {
+                          nodes {
+                            author {
+                              login
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `, { owner, repo, number });
+
+            const pr = data.repository.pullRequest;
+            const copilotAuthors = new Set(['copilot-pull-request-reviewer', 'Copilot']);
+
+            const copilotReviews = pr.reviews.nodes.filter((r) => {
+              const login = r.author?.login;
+              return login && copilotAuthors.has(login) && r.state !== 'PENDING';
+            });
+
+            if (copilotReviews.length === 0) {
+              core.setFailed('Waiting for Copilot review.');
+              return;
+            }
+
+            const unresolvedCopilotThreads = pr.reviewThreads.nodes.filter((t) => {
+              if (t.isResolved) {
+                return false;
+              }
+              return t.comments.nodes.some((c) => copilotAuthors.has(c.author?.login));
+            });
+
+            if (unresolvedCopilotThreads.length > 0) {
+              core.setFailed(
+                `Copilot has ${unresolvedCopilotThreads.length} unresolved review thread(s). Resolve them before merge.`
+              );
+              return;
+            }
+
+            core.notice('Copilot review is present and all Copilot review threads are resolved.');

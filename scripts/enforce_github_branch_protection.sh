@@ -4,12 +4,14 @@ set -euo pipefail
 usage() {
   cat <<USAGE
 Usage:
-  $0 [--repo owner/repo] [--branch branch] [--check check-name]... [--allow-clear-checks] [--dry-run]
+  $0 [--repo owner/repo] [--branch branch] [--check check-name]... [--required-approvals N] [--allow-clear-checks] [--dry-run]
 
 Options:
   --repo      GitHub repository in owner/repo format. If omitted, detect from git origin.
   --branch    Branch to protect. If omitted, detect default branch from GitHub.
   --check     Required status check name. Repeatable.
+  --required-approvals
+              Number of required approving reviews. Default: 0.
   --allow-clear-checks
               Allow clearing required_status_checks when no checks were provided and none were auto-detected.
   --dry-run   Print detected values and payload without applying changes.
@@ -19,7 +21,7 @@ Behavior:
   - Apply branch protection to require pull requests and review gates.
   - Configure required status checks only when provided via --check or auto-detected.
   - Require branches to be up to date before merge.
-  - Require one approving review and conversation resolution.
+  - Require N approving reviews (set by --required-approvals) and conversation resolution.
   - Enforce rules for admins.
   - Enable delete_branch_on_merge at repository level.
 USAGE
@@ -30,6 +32,7 @@ branch=""
 dry_run=false
 checks=()
 allow_clear_checks=false
+required_approvals=0
 
 require_flag_value() {
   local flag="$1"
@@ -58,6 +61,15 @@ while [[ $# -gt 0 ]]; do
     --check)
       require_flag_value "--check" "$#" "${2-}"
       checks+=("$2")
+      shift 2
+      ;;
+    --required-approvals)
+      require_flag_value "--required-approvals" "$#" "${2-}"
+      if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+        echo "invalid value for --required-approvals: $2" >&2
+        exit 2
+      fi
+      required_approvals="$2"
       shift 2
       ;;
     --allow-clear-checks)
@@ -233,7 +245,7 @@ ${required_status_checks_block}
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": true,
     "require_code_owner_reviews": false,
-    "required_approving_review_count": 1
+    "required_approving_review_count": $required_approvals
   },
   "restrictions": null,
   "required_conversation_resolution": true,

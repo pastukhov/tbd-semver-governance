@@ -47,7 +47,8 @@ Apply one long-lived default branch and short-lived task branches with strict qu
 3. Apply protection with `scripts/enforce_github_branch_protection.sh`.
 4. Let the script auto-detect `owner/repo` from `origin` and default branch from GitHub.
 5. Let the script auto-detect required checks from latest default-branch check runs, or pass checks explicitly with repeated `--check`.
-6. Run with `--dry-run` first when validating a new repository policy.
+6. Set approvals policy explicitly with `--required-approvals` (use `0` for no manual approvals when Copilot gate is used).
+7. Run with `--dry-run` first when validating a new repository policy.
 
 ## CI Check Suggestions
 
