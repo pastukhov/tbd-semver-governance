@@ -14,7 +14,8 @@ Options:
   -h,--help   Show this help.
 
 Behavior:
-  - Apply branch protection to require PRs and successful required checks.
+  - Apply branch protection to require pull requests and review gates.
+  - Configure required status checks only when provided via --check or auto-detected.
   - Require branches to be up to date before merge.
   - Require one approving review and conversation resolution.
   - Enforce rules for admins.
@@ -27,18 +28,33 @@ branch=""
 dry_run=false
 checks=()
 
+require_flag_value() {
+  local flag="$1"
+  local count="$2"
+  local value="${3-}"
+
+  if [[ "$count" -lt 2 || -z "$value" ]]; then
+    echo "missing value for $flag" >&2
+    usage >&2
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
-      repo="${2:-}"
+      require_flag_value "--repo" "$#" "${2-}"
+      repo="$2"
       shift 2
       ;;
     --branch)
-      branch="${2:-}"
+      require_flag_value "--branch" "$#" "${2-}"
+      branch="$2"
       shift 2
       ;;
     --check)
-      checks+=("${2:-}")
+      require_flag_value "--check" "$#" "${2-}"
+      checks+=("$2")
       shift 2
       ;;
     --dry-run)
@@ -93,6 +109,15 @@ json_escape() {
   python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$1"
 }
 
+url_encode() {
+  python3 - "$1" <<'PY'
+import sys
+import urllib.parse
+
+print(urllib.parse.quote(sys.argv[1], safe=""))
+PY
+}
+
 build_checks_json() {
   local out=""
   local name
@@ -102,7 +127,7 @@ build_checks_json() {
     if [[ -n "$out" ]]; then
       out+=","
     fi
-    out+="{\"context\":$(json_escape "$name")}" 
+    out+="{\"context\":$(json_escape "$name")}"
   done
 
   printf '[%s]' "$out"
@@ -144,8 +169,10 @@ if [[ -z "$branch" ]]; then
   branch="$(gh repo view "$repo" --json defaultBranchRef --jq '.defaultBranchRef.name')"
 fi
 
+encoded_branch="$(url_encode "$branch")"
+
 if [[ ${#checks[@]} -eq 0 ]]; then
-  head_sha="$(gh api "repos/$repo/commits/$branch" --jq '.sha')"
+  head_sha="$(gh api "repos/$repo/commits/$encoded_branch" --jq '.sha')"
   mapfile -t detected < <(gh api "repos/$repo/commits/$head_sha/check-runs" --jq '.check_runs[].name' | sort -u)
   checks=("${detected[@]}")
 fi
@@ -155,10 +182,14 @@ if [[ ${#checks[@]} -eq 0 ]]; then
   has_required_checks=false
 fi
 
-checks_json="$(build_checks_json "${checks[@]}")"
+if payload_file="$(mktemp -t enforce_github_branch_protection.XXXXXX 2>/dev/null)"; then
+  :
+else
+  payload_file="$(mktemp "${TMPDIR:-/tmp}/enforce_github_branch_protection.XXXXXX")"
+fi
 
-payload_file="$(mktemp)"
 trap 'rm -f "$payload_file"' EXIT
+checks_json="$(build_checks_json "${checks[@]}")"
 
 if $has_required_checks; then
   required_status_checks_block=$(cat <<JSON
@@ -209,7 +240,7 @@ if $dry_run; then
   exit 0
 fi
 
-gh api --method PUT "repos/$repo/branches/$branch/protection" --input "$payload_file" >/dev/null
+gh api --method PUT "repos/$repo/branches/$encoded_branch/protection" --input "$payload_file" >/dev/null
 
 gh api --method PATCH "repos/$repo" -f delete_branch_on_merge=true >/dev/null
 
