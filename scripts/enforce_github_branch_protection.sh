@@ -190,7 +190,11 @@ encoded_branch="$(url_encode "$branch")"
 
 if [[ ${#checks[@]} -eq 0 ]]; then
   head_sha="$(gh api "repos/$repo/commits/$encoded_branch" --jq '.sha')"
-  mapfile -t detected < <(gh api "repos/$repo/commits/$head_sha/check-runs" --jq '.check_runs[].name' | sort -u)
+  if ! detected_raw="$(gh api "repos/$repo/commits/$head_sha/check-runs" --jq '.check_runs[].name')"; then
+    echo "Failed to retrieve check runs for commit $head_sha from $repo" >&2
+    exit 1
+  fi
+  mapfile -t detected <<<"$(printf '%s\n' "$detected_raw" | sort -u)"
   checks=("${detected[@]}")
 fi
 
