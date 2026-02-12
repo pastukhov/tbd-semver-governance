@@ -1,0 +1,4 @@
+interface:
+  display_name: "TBD + SemVer Governance"
+  short_description: "Enforce TBD flow and SemVer release discipline"
+  default_prompt: "Use $tbd-semver-governance to apply TBD branch and SemVer release rules in this repository."
